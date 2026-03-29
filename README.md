@@ -1,6 +1,6 @@
 Unbrick or upgrade a Hikvision device. Use as follows:
 
-Download the firmware to flash. Usually there's a zip file containing digicap.dav
+Download the firmware for your device. Usually there's a zip file containing digicap.dav
 
 https://www.hikvision.com/en/support/download/firmware/
 
@@ -15,7 +15,7 @@ enough. The client sends a particular packet to the server's port 9978 from
 the client port 9979 and expects the server to echo it back.  Once that
 happens, it proceeds to send a tftp request (on the standard tftp port, 69)
 for a specific file, which it then installs. The tftp server must reply
-from port 69 (unlike the tftpd package that comes with Debian).
+from port 69.
 
 This script handles both the handshake and the actual TFTP transfer.
 The TFTP server is very simple but appears to be good enough.
@@ -29,7 +29,7 @@ there are some known configurations:
 | 192.0.0.64   | 192.0.0.128   | `digicap.dav` |
 | 172.9.18.100 | 172.9.18.80   | `digicap.mav` |
 
-This program defaults to the 1st. Others require commandline overrides:
+This program defaults to 192.168.1.128. Others require commandline overrides:
 
     $ sudo python3 hikvision_tftp.py --server-ip=172.9.18.80 --filename=digicap.mav
 
