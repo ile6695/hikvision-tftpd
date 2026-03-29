@@ -172,7 +172,7 @@ if __name__ == '__main__':
     try:
         file_contents = open(args.filename, mode='rb').read()
     except IOError as e:
-        print('Error: can\'t read %s' % args.filename)
+        print(f'Error: can\'t read {args.filename}')
         if e.errno == errno.ENOENT:
             print('Please download/move it to the current working directory.')
             sys.exit(1)
@@ -183,7 +183,7 @@ if __name__ == '__main__':
                         (args.server_ip, _TFTP_SERVER_PORT),
                         args.filename, file_contents)
     except Error as e:
-        print('Error: %s' % e.message)
+        print(f'Error: {e}')
         sys.exit(1)
 
     server.run_forever()
