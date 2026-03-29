@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# 2018 Scott Lamb <slamb@slamb.org>
+
 """
 Unbrick a Hikvision device. See README.md for usage information.
 """
 
-
-__author__ = 'Scott Lamb'
-__license__ = 'MIT'
-__email__ = 'slamb@slamb.org'
 
 import argparse
 import errno
@@ -17,7 +16,7 @@ import struct
 import sys
 import time
 
-HANDSHAKE_BYTES = struct.pack('20s', 'SWKH')
+HANDSHAKE_BYTES = struct.pack('20s', b'SWKH')
 _HANDSHAKE_SERVER_PORT = 9978
 _TFTP_SERVER_PORT = 69
 _TIME_FMT = '%c'
@@ -37,10 +36,10 @@ class Server(object):
 
     def __init__(self, handshake_addr, tftp_addr, filename, file_contents):
         self._file_contents = file_contents
-        self._filename = filename
+        self._filename = filename.encode('utf-8')
         self._tftp_rrq_prefix = (struct.pack('>h', self._TFTP_OPCODE_RRQ) +
-                                 filename + '\x00')
-        self._tftp_blksize_option = 'blksize\x00'
+                                 self._filename + b'\x00')
+        self._tftp_blksize_option = b'blksize\x00'
         self._handshake_sock = self._bind(handshake_addr)
         self._tftp_sock = self._bind(tftp_addr)
         self._set_block_size(_DEFAULT_BLOCK_SIZE)
@@ -85,7 +84,7 @@ class Server(object):
 
     def _parse_options(self, pkt):
         pkt_options = pkt.split(self._tftp_rrq_prefix)[1]
-        options_list = pkt_options.split('\x00')[1:]
+        options_list = pkt_options.split(b'\x00')[1:]
         options = {}
         for i in range(0, len(options_list) - 1, 2):
             options[options_list[i]] = options_list[i + 1]
@@ -141,7 +140,7 @@ class Server(object):
 
     def _tftp_options_ack(self, addr):
         self._check_total_block_limit()
-        pkt = (struct.pack('>H', self._TFTP_OPCODE_OACK) + 'blksize\x00' + str(self._block_size) + '\x00')
+        pkt = (struct.pack('>H', self._TFTP_OPCODE_OACK) + b'blksize\x00' + str(self._block_size) + b'\x00')
         self._tftp_sock.sendto(pkt, addr)
 
     def _tftp_maybe_send(self, prev_block, addr):
