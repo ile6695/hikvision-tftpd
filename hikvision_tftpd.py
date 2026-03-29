@@ -1,9 +1,8 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 """
 Unbrick a Hikvision device. See README.md for usage information.
 """
 
-from __future__ import division
 
 __author__ = 'Scott Lamb'
 __license__ = 'MIT'
@@ -50,7 +49,7 @@ class Server(object):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             sock.bind(addr)
-        except socket.error, e:
+        except socket.error as e:
             if e.errno == errno.EADDRNOTAVAIL:
                 raise Error(
                     ('Address %s:%d not available.\n\n'
@@ -72,12 +71,12 @@ class Server(object):
 
     def _set_block_size(self, block_size):
         # TODO: Don't mutate overall server for a single transfer. Use some kind of per-transfer state
-        print 'Setting block size to %d' % block_size
+        print('Setting block size to %d' % block_size)
         self._block_size = block_size
         self._total_blocks = ((len(self._file_contents) + self._block_size)
                               // self._block_size)
-        print 'Serving %d-byte %s (block size %d, %d blocks)' % (
-            len(self._file_contents), self._filename, self._block_size, self._total_blocks)
+        print('Serving %d-byte %s (block size %d, %d blocks)' % (
+            len(self._file_contents), self._filename, self._block_size, self._total_blocks))
 
     def _check_total_block_limit(self):
         if self._total_blocks > 65535:
@@ -90,7 +89,7 @@ class Server(object):
         options = {}
         for i in range(0, len(options_list) - 1, 2):
             options[options_list[i]] = options_list[i + 1]
-        print 'read request options: %s' % options
+        print('read request options: %s' % options)
         return options
 
     def close(self):
@@ -114,10 +113,10 @@ class Server(object):
         now = time.strftime(_TIME_FMT)
         if pkt == HANDSHAKE_BYTES:
             self._handshake_sock.sendto(pkt, addr)
-            print '%s: Replied to magic handshake request.' % now
+            print('%s: Replied to magic handshake request.' % now)
         else:
-            print '%s: received unexpected handshake bytes %r from %s:%d' % (
-                now, pkt.encode('hex'), addr[0], addr[1])
+            print('%s: received unexpected handshake bytes %r from %s:%d' % (
+                now, pkt.encode('hex'), addr[0], addr[1]))
 
     def _tftp_read(self):
         pkt, addr = self._tftp_sock.recvfrom(65536)
@@ -126,19 +125,19 @@ class Server(object):
             options = self._parse_options(pkt)
             if 'blksize' in options:
                 self._set_block_size(int(options['blksize']))
-                print '%s: sending options ack' % now
+                print('%s: sending options ack' % now)
                 self._tftp_options_ack(addr)
                 return
             self._check_total_block_limit()
-            print '%s: starting transfer' % now
+            print('%s: starting transfer' % now)
             self._tftp_maybe_send(0, addr)
         elif pkt.startswith(self._TFTP_ACK_PREFIX):
             (block,) = struct.unpack(
                 '>H', pkt[len(self._TFTP_ACK_PREFIX):])
             self._tftp_maybe_send(block, addr)
         else:
-            print '%s: received unexpected tftp bytes %r from %s:%d' % (
-                now, pkt.encode('hex'), addr[0], addr[1])
+            print('%s: received unexpected tftp bytes %r from %s:%d' % (
+                now, pkt.encode('hex'), addr[0], addr[1]))
 
     def _tftp_options_ack(self, addr):
         self._check_total_block_limit()
@@ -149,7 +148,7 @@ class Server(object):
         block = prev_block + 1
         start_byte = prev_block * self._block_size
         if start_byte > len(self._file_contents):
-            print '%s: done!' % time.strftime(_TIME_FMT)
+            print('%s: done!' % time.strftime(_TIME_FMT))
             if self._block_size != _DEFAULT_BLOCK_SIZE:
                 self._set_block_size(_DEFAULT_BLOCK_SIZE)
             return
@@ -157,10 +156,10 @@ class Server(object):
         pkt = (struct.pack('>hH', self._TFTP_OPCODE_DATA, block) + block_data)
         self._tftp_sock.sendto(pkt, addr)
         _progress_width = 53
-        print '%s: %5d / %5d [%-*s]' % (
+        print('%s: %5d / %5d [%-*s]' % (
                 time.strftime(_TIME_FMT), block, self._total_blocks,
                 _progress_width,
-                '#' * (_progress_width * block // self._total_blocks))
+                '#' * (_progress_width * block // self._total_blocks)))
 
 
 if __name__ == '__main__':
@@ -173,10 +172,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     try:
         file_contents = open(args.filename, mode='rb').read()
-    except IOError, e:
-        print 'Error: can\'t read %s' % args.filename
+    except IOError as e:
+        print('Error: can\'t read %s' % args.filename)
         if e.errno == errno.ENOENT:
-            print 'Please download/move it to the current working directory.'
+            print('Please download/move it to the current working directory.')
             sys.exit(1)
         raise
 
@@ -184,8 +183,8 @@ if __name__ == '__main__':
         server = Server((args.server_ip, _HANDSHAKE_SERVER_PORT),
                         (args.server_ip, _TFTP_SERVER_PORT),
                         args.filename, file_contents)
-    except Error, e:
-        print 'Error: %s' % e.message
+    except Error as e:
+        print('Error: %s' % e.message)
         sys.exit(1)
 
     server.run_forever()

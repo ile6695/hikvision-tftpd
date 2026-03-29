@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 __author__ = 'Scott Lamb'
 __license__ = 'MIT'
@@ -69,7 +69,7 @@ class TftpdTest(unittest.TestCase):
             hikvision_tftpd.Server(self._server._handshake_sock.getsockname(),
                                    self._server._tftp_sock.getsockname(),
                                    'digicap.dav', '')
-        except hikvision_tftpd.Error, e:
+        except hikvision_tftpd.Error as e:
             self.assertTrue('in use' in e.message, 'Unexpected: %r' % e)
         else:
             self.fail('expected an error')
@@ -82,7 +82,7 @@ class TftpdTest(unittest.TestCase):
             # either, but we do what we must.)
             hikvision_tftpd.Server(('192.0.2.1', 0), ('192.0.2.1', 0),
                                    'digicap.dav', '')
-        except hikvision_tftpd.Error, e:
+        except hikvision_tftpd.Error as e:
             self.assertTrue('not available' in e.message, 'Unexpected: %r' % e)
         else:
             self.fail('expected an error')
@@ -94,7 +94,7 @@ class TftpdTest(unittest.TestCase):
         try:
             hikvision_tftpd.Server(('127.0.0.1', 1), ('127.0.0.1', 3),
                                    'digicap.dav', '')
-        except hikvision_tftpd.Error, e:
+        except hikvision_tftpd.Error as e:
             self.assertTrue('permission' in e.message, 'Unexpected: %r' % e)
         else:
             self.fail('expected an error. '
