@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# 2018 Scott Lamb <slamb@slamb.org>
+# 2026 Ilkka Kallioniemi
 
-__author__ = 'Scott Lamb'
-__license__ = 'MIT'
-__email__ = 'slamb@slamb.org'
-
-
-import errno
 import hikvision_tftpd
 import socket
 import string
 import unittest
-import platform
 import sys
 
 
@@ -18,17 +14,17 @@ class TftpdTest(unittest.TestCase):
     _BLOCK_SIZE = 1468
 
     # From a packet capture.
-    _TEST_RRQ = ('\x00\x01digicap.dav\x00'                  # request file digicap.dav
-                 'octet\x00'                                # mode octet
-                 'timeout\x005\x00'                         # RFC 2349 timeout = 5 seconds
-                 'blksize\x00' + str(_BLOCK_SIZE) + '\x00') # RFC 2348 block size = 1458
+    _TEST_RRQ = (b'\x00\x01' + b'digicap.dav' + b'\x00'        # request file digicap.dav
+                 + b'octet' + b'\x00'                          # mode octet
+                 + b'timeout' + b'\x00' + b'5' + b'\x00'      # RFC 2349 timeout = 5 seconds
+                 + b'blksize' + b'\x00' + str(_BLOCK_SIZE).encode() + b'\x00')  # RFC 2348 block size
 
-    _TEST_RRQ_DEFAULT_BLKSIZE = ('\x00\x01digicap.dav\x00'  # request file digicap.dav
-                 'octet\x00')                               # mode octet
+    _TEST_RRQ_DEFAULT_BLKSIZE = (b'\x00\x01' + b'digicap.dav' + b'\x00'
+                                 + b'octet' + b'\x00')
 
     _LARGE_BUFFER_SIZE = 65536
 
-    _BLKSIZE_OPTION = 'blksize\x00' + str(_BLOCK_SIZE) + '\x00'
+    _BLKSIZE_OPTION = b'blksize\x00' + str(_BLOCK_SIZE).encode() + b'\x00'
 
     def setUp(self):
         self._server = None
@@ -40,12 +36,13 @@ class TftpdTest(unittest.TestCase):
             self._tftp_client.close()
 
     def _setup(self, data):
+        # Ensure data is bytes
+        if isinstance(data, str):
+            data = data.encode()
         self._server = hikvision_tftpd.Server(
-                ('127.0.0.1', 0), ('127.0.0.1', 0), 'digicap.dav', data)
-        self._handshake_client = socket.socket(
-            socket.AF_INET, socket.SOCK_DGRAM)
-        self._handshake_client.connect(
-            self._server._handshake_sock.getsockname())
+            ('127.0.0.1', 0), ('127.0.0.1', 0), 'digicap.dav', data)
+        self._handshake_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._handshake_client.connect(self._server._handshake_sock.getsockname())
         self._tftp_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._tftp_client.connect(self._server._tftp_sock.getsockname())
 
@@ -64,13 +61,13 @@ class TftpdTest(unittest.TestCase):
             self.fail('expected nothing, got: %r' % d)
 
     def test_eaddrinuse(self):
-        self._setup('')
+        self._setup(b'')
         try:
             hikvision_tftpd.Server(self._server._handshake_sock.getsockname(),
                                    self._server._tftp_sock.getsockname(),
-                                   'digicap.dav', '')
+                                   'digicap.dav', b'')
         except hikvision_tftpd.Error as e:
-            self.assertTrue('in use' in e.message, 'Unexpected: %r' % e)
+            self.assertTrue('in use' in str(e), 'Unexpected: %r' % e)
         else:
             self.fail('expected an error')
 
@@ -81,128 +78,125 @@ class TftpdTest(unittest.TestCase):
             # (Okay, according to the RFCs, it shouldn't be using 192.0.0.128
             # either, but we do what we must.)
             hikvision_tftpd.Server(('192.0.2.1', 0), ('192.0.2.1', 0),
-                                   'digicap.dav', '')
+                                   'digicap.dav', b'')
         except hikvision_tftpd.Error as e:
-            self.assertTrue('not available' in e.message, 'Unexpected: %r' % e)
+            self.assertTrue('not available' in str(e), 'Unexpected: %r' % e)
         else:
             self.fail('expected an error')
 
-    # Skip check for user root not relevant on Windows Platform
     @unittest.skipIf(sys.platform.startswith('win'),
                      'Skip check for root permissions on Windows')
     def test_eaccess(self):
         try:
             hikvision_tftpd.Server(('127.0.0.1', 1), ('127.0.0.1', 3),
-                                   'digicap.dav', '')
+                                   'digicap.dav', b'')
         except hikvision_tftpd.Error as e:
-            self.assertTrue('permission' in e.message, 'Unexpected: %r' % e)
+            self.assertTrue('permission' in str(e), 'Unexpected: %r' % e)
         else:
-            self.fail('expected an error. '
-                      '(did you run the tests as root? don\'t.)')
-
+            self.fail('expected an error. (did you run the tests as root? don\'t.)')
 
     def test_proper_handshake(self):
-        self._setup('')
+        self._setup(b'')
         self._handshake_client.send(hikvision_tftpd.HANDSHAKE_BYTES)
         self._server._iterate()
         pkt = self._handshake_client.recv(self._LARGE_BUFFER_SIZE)
         self.assertEqual(hikvision_tftpd.HANDSHAKE_BYTES, pkt)
 
     def test_bogus_handshake(self):
-        self._setup('')
-        self._handshake_client.send('asdf')
+        self._setup(b'')
+        self._handshake_client.send(b'asdf')
         self._server._iterate()
         self._assert_no_data()
 
     def test_one_block(self):
-        data = string.letters
+        data = string.ascii_letters.encode()
         self._setup(data)
         self._tftp_client.send(self._TEST_RRQ)
         self._server._iterate()
         pkt = self._tftp_client.recv(self._LARGE_BUFFER_SIZE)
-        self.assertEqual('\x00\x06' + self._BLKSIZE_OPTION, pkt)
+        self.assertEqual(b'\x00\x06' + self._BLKSIZE_OPTION, pkt)
 
         # OACK ACK
-        self._tftp_client.send('\x00\x04\x00\x00')
+        self._tftp_client.send(b'\x00\x04\x00\x00')
         self._server._iterate()
         pkt = self._tftp_client.recv(self._LARGE_BUFFER_SIZE)
-        self.assertEqual('\x00\x03\x00\x01' + data, pkt)
-        self._tftp_client.send('\x00\x03\x00\x01')
+        self.assertEqual(b'\x00\x03\x00\x01' + data, pkt)
+        self._tftp_client.send(b'\x00\x03\x00\x01')
         self._server._iterate()
         self._assert_no_data()
 
     def test_two_block(self):
         blocksize = self._BLOCK_SIZE
-        repetitions = 1 + blocksize // len(string.letters)
-        data = string.letters * repetitions
+        repetitions = 1 + blocksize // len(string.ascii_letters)
+        data = (string.ascii_letters * repetitions).encode()
         self._setup(data)
 
         # First packet.
         self._tftp_client.send(self._TEST_RRQ)
         self._server._iterate()
         pkt = self._tftp_client.recv(self._LARGE_BUFFER_SIZE)
-        self.assertEqual('\x00\x06' + self._BLKSIZE_OPTION, pkt)
+        self.assertEqual(b'\x00\x06' + self._BLKSIZE_OPTION, pkt)
 
         # OACK ACK
-        self._tftp_client.send('\x00\x04\x00\x00')
+        self._tftp_client.send(b'\x00\x04\x00\x00')
         self._server._iterate()
         pkt = self._tftp_client.recv(self._LARGE_BUFFER_SIZE)
-        self.assertEqual('\x00\x03\x00\x01' + data[:blocksize], pkt)
+        self.assertEqual(b'\x00\x03\x00\x01' + data[:blocksize], pkt)
 
         # Second packet.
-        self._tftp_client.send('\x00\x04\x00\x01')
+        self._tftp_client.send(b'\x00\x04\x00\x01')
         self._server._iterate()
         pkt = self._tftp_client.recv(self._LARGE_BUFFER_SIZE)
-        self.assertEqual('\x00\x03\x00\x02' + data[blocksize:], pkt)
+        self.assertEqual(b'\x00\x03\x00\x02' + data[blocksize:], pkt)
 
         # No more packets.
-        self._tftp_client.send('\x00\x04\x00\x02')
+        self._tftp_client.send(b'\x00\x04\x00\x02')
         self._server._iterate()
         self._assert_no_data()
 
     def test_full_block(self):
         blocksize = self._BLOCK_SIZE
-        data = 'x' * blocksize
+        data = b'x' * blocksize
         self._setup(data)
         self._tftp_client.send(self._TEST_RRQ)
         self._server._iterate()
         pkt = self._tftp_client.recv(self._LARGE_BUFFER_SIZE)
-        self.assertEqual('\x00\x06' + self._BLKSIZE_OPTION, pkt)
+        self.assertEqual(b'\x00\x06' + self._BLKSIZE_OPTION, pkt)
 
         # OACK ACK
-        self._tftp_client.send('\x00\x04\x00\x00')
+        self._tftp_client.send(b'\x00\x04\x00\x00')
         self._server._iterate()
         pkt = self._tftp_client.recv(self._LARGE_BUFFER_SIZE)
-        self.assertEqual('\x00\x03\x00\x01' + data, pkt)
+        self.assertEqual(b'\x00\x03\x00\x01' + data, pkt)
 
         # Second packet (empty).
-        self._tftp_client.send('\x00\x04\x00\x01')
+        self._tftp_client.send(b'\x00\x04\x00\x01')
         self._server._iterate()
         pkt = self._tftp_client.recv(self._LARGE_BUFFER_SIZE)
-        self.assertEqual('\x00\x03\x00\x02', pkt)
+        self.assertEqual(b'\x00\x03\x00\x02', pkt)
 
         # No more packets.
-        self._tftp_client.send('\x00\x04\x00\x02')
+        self._tftp_client.send(b'\x00\x04\x00\x02')
         self._server._iterate()
         self._assert_no_data()
 
     def test_full_block_default_blksize(self):
         blocksize = 512
-        data = 'x' * blocksize
+        data = b'x' * blocksize
         self._setup(data)
         self._tftp_client.send(self._TEST_RRQ_DEFAULT_BLKSIZE)
         self._server._iterate()
         pkt = self._tftp_client.recv(self._LARGE_BUFFER_SIZE)
-        self.assertEqual('\x00\x03\x00\x01' + data, pkt)
+        self.assertEqual(b'\x00\x03\x00\x01' + data, pkt)
 
         # Second packet (empty).
-        self._tftp_client.send('\x00\x04\x00\x01')
+        self._tftp_client.send(b'\x00\x04\x00\x01')
         self._server._iterate()
         pkt = self._tftp_client.recv(self._LARGE_BUFFER_SIZE)
-        self.assertEqual('\x00\x03\x00\x02', pkt)
+        self.assertEqual(b'\x00\x03\x00\x02', pkt)
 
         # No more packets.
-        self._tftp_client.send('\x00\x04\x00\x02')
+        self._tftp_client.send(b'\x00\x04\x00\x02')
         self._server._iterate()
         self._assert_no_data()
 
@@ -212,16 +206,15 @@ class TftpdTest(unittest.TestCase):
         max_blocks = 2**16 - 1
         max_size = self._BLOCK_SIZE * max_blocks - 1
 
-        self._setup('x' * max_size)
+        self._setup(b'x' * max_size)
 
         self._tftp_client.send(self._TEST_RRQ)
         self._server._iterate()
         self._server.close()
 
-        self._setup('x' * (max_size + 1))
+        self._setup(b'x' * (max_size + 1))
         self._tftp_client.send(self._TEST_RRQ)
-        self.assertRaises(hikvision_tftpd.Error,
-                          self._server._iterate)
+        self.assertRaises(hikvision_tftpd.Error, self._server._iterate)
 
 
 if __name__ == '__main__':
